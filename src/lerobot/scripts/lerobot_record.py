@@ -127,6 +127,7 @@ from lerobot.robots import (  # noqa: F401
     openarm_follower,
     reachy2,
     so_follower,
+    tg_arm620,
     unitree_g1 as unitree_g1_robot,
 )
 from lerobot.teleoperators import (  # noqa: F401
@@ -142,6 +143,7 @@ from lerobot.teleoperators import (  # noqa: F401
     openarm_mini,
     reachy2_teleoperator,
     so_leader,
+    tg_arm620_keyboard,
     unitree_g1,
 )
 from lerobot.teleoperators.keyboard import KeyboardTeleop

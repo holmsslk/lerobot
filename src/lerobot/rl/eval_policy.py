@@ -24,10 +24,12 @@ from lerobot.robots import (  # noqa: F401
     RobotConfig,
     make_robot_from_config,
     so_follower,
+    tg_arm620,
 )
 from lerobot.teleoperators import (
     gamepad,  # noqa: F401
     so_leader,  # noqa: F401
+    tg_arm620_keyboard,  # noqa: F401
 )
 
 from .gym_manipulator import make_robot_env
