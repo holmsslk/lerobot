@@ -16,10 +16,16 @@
 
 import logging
 import os
+import select
 import sys
+import termios
+import tty
+from collections.abc import Callable
 from functools import cached_property
 from queue import Queue
 from typing import Any
+
+import fcntl
 
 from lerobot.robots.tg_arm620.config_tg_arm620 import JOINT_ORDER
 from lerobot.types import RobotAction
@@ -65,7 +71,6 @@ class TGArm620Keyboard(Teleoperator):
     name = "tg_arm620_keyboard"
 
     def __init__(self, config: TGArm620KeyboardConfig):
-        require_package("pynput", extra="pynput-dep")
         super().__init__(config)
         self.config = config
 
@@ -73,6 +78,11 @@ class TGArm620Keyboard(Teleoperator):
         self._pressed: dict[str, bool] = {}
         self._listener = None
         self._is_connected = False
+        self._input_backend: str | None = None
+        self._stdin_fd: int | None = None
+        self._stdin_termios: list[Any] | None = None
+        self._stdin_flags: int | None = None
+        self._stdin_setcbreak: Callable[[int], None] = tty.setcbreak
 
         self._target_action: dict[str, float] = self._zero_action()
         self._home_action: dict[str, float] = self._zero_action()
@@ -107,19 +117,63 @@ class TGArm620Keyboard(Teleoperator):
     def is_calibrated(self) -> bool:
         return True
 
+    def _can_use_pynput(self) -> bool:
+        return PYNPUT_AVAILABLE and keyboard is not None
+
+    def _setup_stdin_backend(self) -> None:
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "stdin backend requires an interactive TTY terminal. "
+                "Run `lerobot-teleoperate` in a focused terminal."
+            )
+
+        fd = sys.stdin.fileno()
+        self._stdin_fd = fd
+        self._stdin_termios = termios.tcgetattr(fd)
+        self._stdin_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, self._stdin_flags | os.O_NONBLOCK)
+        self._stdin_setcbreak(fd)
+
+    def _teardown_stdin_backend(self) -> None:
+        if self._stdin_fd is None:
+            return
+
+        if self._stdin_termios is not None:
+            termios.tcsetattr(self._stdin_fd, termios.TCSADRAIN, self._stdin_termios)
+        if self._stdin_flags is not None:
+            fcntl.fcntl(self._stdin_fd, fcntl.F_SETFL, self._stdin_flags)
+
+        self._stdin_fd = None
+        self._stdin_termios = None
+        self._stdin_flags = None
+
     @check_if_already_connected
     def connect(self, calibrate: bool = True) -> None:
         del calibrate
-        if not PYNPUT_AVAILABLE or keyboard is None:
-            raise RuntimeError(
-                "pynput is not available for keyboard teleoperation. "
-                "Install it with `pip install 'lerobot[pynput-dep]'` and run in an environment with DISPLAY."
-            )
+        backend = self.config.input_backend
+        if backend == "auto":
+            session_type = os.environ.get("XDG_SESSION_TYPE", "").strip().lower()
+            prefer_stdin = session_type == "wayland"
+            backend = "pynput" if (self._can_use_pynput() and not prefer_stdin) else "stdin"
 
-        self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
-        self._listener.start()
+        if backend == "pynput":
+            require_package("pynput", extra="pynput-dep")
+            if not self._can_use_pynput():
+                raise RuntimeError(
+                    "pynput backend is unavailable in this session. "
+                    "Use `--teleop.input_backend=stdin` for terminal input."
+                )
+            self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)
+            self._listener.start()
+        elif backend == "stdin":
+            self._setup_stdin_backend()
+            logger.info("TGArm620Keyboard using stdin backend. Keep terminal focused for key input.")
+        else:
+            raise RuntimeError(f"Unsupported input backend: {backend!r}")
+
+        self._input_backend = backend
         self._is_connected = True
-        logger.info("TGArm620Keyboard connected.")
+        logger.info(f"TGArm620Keyboard connected (backend={self._input_backend}).")
 
     def calibrate(self) -> None:
         return
@@ -154,6 +208,30 @@ class TGArm620Keyboard(Teleoperator):
                 self._pressed[key_str] = True
             else:
                 self._pressed.pop(key_str, None)
+
+    def _drain_stdin_events(self) -> None:
+        if self._stdin_fd is None:
+            return
+
+        # stdin backend is pulse-based: one char = one control step.
+        self._pressed.clear()
+        while True:
+            ready, _, _ = select.select([self._stdin_fd], [], [], 0.0)
+            if not ready:
+                break
+            try:
+                raw = os.read(self._stdin_fd, 1)
+            except BlockingIOError:
+                break
+            if not raw:
+                break
+            key_str = raw.decode("utf-8", errors="ignore").lower()
+            if not key_str:
+                continue
+            if key_str == "\x1b":
+                self.disconnect()
+                return
+            self._pressed[key_str] = True
 
     def _is_key_pressed(self, key: str) -> bool:
         return self._pressed.get(key, False)
@@ -191,7 +269,10 @@ class TGArm620Keyboard(Teleoperator):
 
     @check_if_not_connected
     def get_action(self) -> RobotAction:
-        self._drain_key_events()
+        if self._input_backend == "stdin":
+            self._drain_stdin_events()
+        else:
+            self._drain_key_events()
 
         if self._is_key_pressed(self.config.home_key):
             self._target_action = self._home_action.copy()
@@ -229,8 +310,10 @@ class TGArm620Keyboard(Teleoperator):
             self._listener.stop()
             self._listener = None
 
+        self._teardown_stdin_backend()
         self._pressed.clear()
         while not self._event_queue.empty():
             self._event_queue.get_nowait()
         self._is_connected = False
+        self._input_backend = None
         logger.info("TGArm620Keyboard disconnected.")

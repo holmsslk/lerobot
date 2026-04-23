@@ -40,6 +40,10 @@ class TGArm620KeyboardConfig(TeleoperatorConfig):
     gripper_close_key: str = "o"
     gripper_open_key: str = "p"
     home_key: str = "h"
+    # `auto`: prefer pynput global listener, fallback to stdin terminal reader when unavailable.
+    # `pynput`: force global listener.
+    # `stdin`: force terminal local reader (recommended in headless/Wayland/VM sessions).
+    input_backend: str = "auto"
 
     joint_limits_rad: dict[str, tuple[float, float]] = field(
         default_factory=lambda: DEFAULT_JOINT_LIMITS_RAD.copy()
@@ -83,4 +87,9 @@ class TGArm620KeyboardConfig(TeleoperatorConfig):
             raise ValueError(
                 f"`gripper_min` must be smaller than `gripper_max`, got ({self.gripper_min}, "
                 f"{self.gripper_max})."
+            )
+
+        if self.input_backend not in {"auto", "pynput", "stdin"}:
+            raise ValueError(
+                f"`input_backend` must be one of ('auto', 'pynput', 'stdin'), got {self.input_backend!r}."
             )

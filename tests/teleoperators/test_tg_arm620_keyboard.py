@@ -158,6 +158,56 @@ def test_connect_raises_if_pynput_is_unavailable():
         patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.PYNPUT_AVAILABLE", False),
         patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.keyboard", None),
     ):
-        device = TGArm620Keyboard(TGArm620KeyboardConfig())
-        with pytest.raises(RuntimeError, match="pynput"):
+        device = TGArm620Keyboard(TGArm620KeyboardConfig(input_backend="pynput"))
+        with pytest.raises(RuntimeError, match="pynput backend is unavailable"):
             device.connect()
+
+
+def test_stdin_backend_applies_single_step_from_terminal_char():
+    config = TGArm620KeyboardConfig(input_backend="stdin", joint_step_rad=0.05)
+    with (
+        patch(
+            "lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.require_package",
+            return_value=None,
+        ),
+        patch("sys.stdin.isatty", return_value=True),
+        patch("sys.stdin.fileno", return_value=0),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.termios.tcgetattr", return_value=[0]),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.termios.tcsetattr", return_value=None),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.fcntl.fcntl", side_effect=[0, 0, 0]),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.tty.setcbreak", return_value=None),
+        patch(
+            "lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.select.select",
+            side_effect=[([0], [], []), ([], [], [])],
+        ),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.os.read", return_value=b"1"),
+    ):
+        device = TGArm620Keyboard(config)
+        device.connect()
+        try:
+            action = device.get_action()
+            assert action["joint1.pos"] == pytest.approx(0.05)
+        finally:
+            if device.is_connected:
+                device.disconnect()
+
+
+def test_auto_backend_prefers_stdin_on_wayland():
+    with (
+        patch(
+            "lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.require_package",
+            return_value=None,
+        ),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.PYNPUT_AVAILABLE", True),
+        patch("lerobot.teleoperators.tg_arm620_keyboard.tg_arm620_keyboard.keyboard", _FakeKeyboard),
+        patch.dict("os.environ", {"XDG_SESSION_TYPE": "wayland"}, clear=False),
+        patch.object(TGArm620Keyboard, "_setup_stdin_backend", return_value=None),
+        patch.object(TGArm620Keyboard, "_teardown_stdin_backend", return_value=None),
+    ):
+        device = TGArm620Keyboard(TGArm620KeyboardConfig(input_backend="auto"))
+        device.connect()
+        try:
+            assert device._input_backend == "stdin"
+        finally:
+            if device.is_connected:
+                device.disconnect()
