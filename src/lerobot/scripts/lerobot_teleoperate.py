@@ -100,6 +100,7 @@ from lerobot.teleoperators import (  # noqa: F401
     reachy2_teleoperator,
     so_leader,
     tg_arm620_keyboard,
+    tg_arm620_ros2,
     unitree_g1,
 )
 from lerobot.utils.import_utils import register_third_party_plugins

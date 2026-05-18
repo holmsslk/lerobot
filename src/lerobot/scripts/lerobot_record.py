@@ -111,6 +111,7 @@ from lerobot.processor import (
     RobotAction,
     RobotObservation,
     RobotProcessorPipeline,
+    TG620Joint7ObservationProcessorStep,
     make_default_processors,
     rename_stats,
 )
@@ -144,6 +145,7 @@ from lerobot.teleoperators import (  # noqa: F401
     reachy2_teleoperator,
     so_leader,
     tg_arm620_keyboard,
+    tg_arm620_ros2,
     unitree_g1,
 )
 from lerobot.teleoperators.keyboard import KeyboardTeleop
@@ -505,6 +507,12 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     teleop = make_teleoperator_from_config(cfg.teleop) if cfg.teleop is not None else None
 
     teleop_action_processor, robot_action_processor, robot_observation_processor = make_default_processors()
+    if robot.name == "tg_arm620_follower":
+        robot_observation_processor = RobotProcessorPipeline[RobotObservation, RobotObservation](
+            steps=[TG620Joint7ObservationProcessorStep()],
+            to_transition=robot_observation_processor.to_transition,
+            to_output=robot_observation_processor.to_output,
+        )
 
     dataset_features = combine_feature_dicts(
         aggregate_pipeline_dataset_features(

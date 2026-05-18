@@ -71,6 +71,10 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> "Teleoperator":
         from .tg_arm620_keyboard import TGArm620Keyboard
 
         return TGArm620Keyboard(config)
+    elif config.type == "tg_arm620_ros2":
+        from .tg_arm620_ros2 import TGArm620ROS2Teleoperator
+
+        return TGArm620ROS2Teleoperator(config)
     elif config.type == "homunculus_glove":
         from .homunculus import HomunculusGlove
 

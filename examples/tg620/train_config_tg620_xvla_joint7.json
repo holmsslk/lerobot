@@ -1,0 +1,139 @@
+{
+  "dataset": {
+    "repo_id": "YOUR_USERNAME/tg620_joint7",
+    "root": null,
+    "episodes": null,
+    "video_backend": null
+  },
+  "env": null,
+  "policy": {
+    "type": "xvla",
+    "device": "cuda",
+    "use_amp": false,
+    "use_peft": false,
+    "push_to_hub": false,
+    "repo_id": "YOUR_USERNAME/xvla-tg620-joint7",
+    "private": null,
+    "tags": null,
+    "license": null,
+    "pretrained_path": null,
+    "n_obs_steps": 1,
+    "input_features": {
+      "observation.images.image": {
+        "type": "VISUAL",
+        "shape": [
+          3,
+          256,
+          256
+        ]
+      },
+      "observation.images.image2": {
+        "type": "VISUAL",
+        "shape": [
+          3,
+          256,
+          256
+        ]
+      },
+      "observation.state": {
+        "type": "STATE",
+        "shape": [
+          7
+        ]
+      }
+    },
+    "output_features": {
+      "action": {
+        "type": "ACTION",
+        "shape": [
+          7
+        ]
+      }
+    },
+    "chunk_size": 50,
+    "n_action_steps": 30,
+    "dtype": "bfloat16",
+    "normalization_mapping": {
+      "STATE": "IDENTITY",
+      "ACTION": "MEAN_STD",
+      "VISUAL": "IDENTITY"
+    },
+    "tokenizer_name": "facebook/bart-large",
+    "tokenizer_max_length": 1024,
+    "tokenizer_padding_side": "right",
+    "pad_language_to": "max_length",
+    "hidden_size": 1024,
+    "depth": 24,
+    "num_heads": 16,
+    "mlp_ratio": 4.0,
+    "num_domains": 30,
+    "len_soft_prompts": 32,
+    "dim_time": 32,
+    "max_len_seq": 512,
+    "use_hetero_proj": false,
+    "action_mode": "auto",
+    "num_denoising_steps": 10,
+    "use_proprio": true,
+    "max_state_dim": 20,
+    "max_action_dim": 20,
+    "domain_feature_key": null,
+    "resize_imgs_with_padding": [
+      224,
+      224
+    ],
+    "num_image_views": 3,
+    "empty_cameras": 1,
+    "freeze_vision_encoder": false,
+    "freeze_language_encoder": false,
+    "train_policy_transformer": true,
+    "train_soft_prompts": true,
+    "optimizer_lr": 0.0001,
+    "optimizer_betas": [
+      0.9,
+      0.95
+    ],
+    "optimizer_eps": 1e-08,
+    "optimizer_weight_decay": 0.0001,
+    "optimizer_grad_clip_norm": 10.0,
+    "optimizer_soft_prompt_lr_scale": 1.0,
+    "optimizer_soft_prompt_warmup_lr_scale": null,
+    "scheduler_warmup_steps": 1000,
+    "scheduler_decay_steps": 30000,
+    "scheduler_decay_lr": 2.5e-06
+  },
+  "output_dir": "outputs/train/tg620_xvla_joint7",
+  "job_name": "tg620_xvla_joint7",
+  "resume": false,
+  "seed": 1000,
+  "cudnn_deterministic": false,
+  "num_workers": 4,
+  "batch_size": 8,
+  "steps": 20000,
+  "eval_freq": 0,
+  "log_freq": 50,
+  "tolerance_s": 0.0001,
+  "save_checkpoint": true,
+  "save_freq": 5000,
+  "use_policy_training_preset": true,
+  "optimizer": null,
+  "scheduler": null,
+  "eval": {
+    "batch_size": 1,
+    "n_episodes": 1,
+    "use_async_envs": false
+  },
+  "wandb": {
+    "enable": false,
+    "project": null,
+    "entity": null,
+    "notes": null,
+    "disable_artifact": false
+  },
+  "peft": null,
+  "use_rabc": false,
+  "rabc_progress_path": null,
+  "rabc_kappa": 0.01,
+  "rabc_epsilon": 1e-06,
+  "rabc_head_mode": "sparse",
+  "rename_map": {}
+}
